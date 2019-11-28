@@ -1,4 +1,4 @@
-# OverApps Services Logging
+# http-logger
 
 This library is extending the ILogger of .NET core in order to log events against a logger REST API
 
