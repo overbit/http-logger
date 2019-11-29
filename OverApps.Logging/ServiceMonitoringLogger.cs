@@ -11,15 +11,17 @@ namespace OverApps.Logging
         private readonly string name;
         private Func<string, LogLevel, bool> filter;
         private readonly ServiceMonitoringLoggerConfig config;
+        private readonly ILogger fallbackLogger;
+
         private HttpClient httpClient { get; }
 
-        // TODO Add a logging processor (queue)
-        public ServiceMonitoringLogger(string name, ServiceMonitoringLoggerConfig config, HttpClient httpClient, Func<string, LogLevel, bool> filter = null)
+        public ServiceMonitoringLogger(string name, ServiceMonitoringLoggerConfig config, HttpClient httpClient, Func<string, LogLevel, bool> filter = null, ILogger fallbackLogger = null)
         {
             this.name = name;
-            Filter = filter ?? ((category, logLevel) => true);
+            this.fallbackLogger = fallbackLogger;
             this.config = config;
             this.httpClient = httpClient;
+            Filter = filter ?? ((category, logLevel) => true);
         }
 
         public IDisposable BeginScope<TState>(TState state)
@@ -51,7 +53,7 @@ namespace OverApps.Logging
             return Filter(name, logLevel);
         }
 
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
+        public async void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
         {
             if (!IsEnabled(logLevel))
             {
@@ -68,15 +70,16 @@ namespace OverApps.Logging
                 UtcDate = DateTime.UtcNow
             };
 
-            httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.OverApps+json");
+            httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.abcam+json");
 
             var body = new StringContent(JsonSerializer.Serialize(eventLog));
 
-            var response = httpClient.PostAsync(config.LoggingEndpoint, body).Result;
+            var response = await httpClient.PostAsync(config.LoggingEndpoint, body);
 
-            if (response.StatusCode != System.Net.HttpStatusCode.Created)
+            if (response.StatusCode != System.Net.HttpStatusCode.Created &&
+                fallbackLogger != null)
             {
-                throw new Exception($"Http request failed with status {(int)response.StatusCode}");
+                fallbackLogger.Log(LogLevel.Warning, $"services_monitoring - {eventLog.ApplicationName} - Http request failed with status {(int)response.StatusCode}");
             }
         }
     }

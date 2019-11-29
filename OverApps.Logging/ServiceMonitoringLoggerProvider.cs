@@ -9,10 +9,10 @@ namespace OverApps.Logging
     public sealed class ServiceMonitoringLoggerProvider : ILoggerProvider
     {
         private readonly HttpClient httpClient;
+        private readonly ILoggerProvider fallbackLoggerProvider;
         private readonly ConcurrentDictionary<string, ServiceMonitoringLogger> loggers = new ConcurrentDictionary<string, ServiceMonitoringLogger>();
-        private readonly Func<string, LogLevel, bool> filter;
 
-        private ServiceMonitoringLoggerConfig config;
+        private readonly ServiceMonitoringLoggerConfig config;
 
         public ServiceMonitoringLoggerProvider(ServiceMonitoringLoggerConfig config, HttpClient httpClient)
         {
@@ -20,9 +20,18 @@ namespace OverApps.Logging
             this.httpClient = httpClient;
         }
 
+        public ServiceMonitoringLoggerProvider(ServiceMonitoringLoggerConfig config, HttpClient httpClient, ILoggerProvider fallbackLoggerProvider)
+        {
+            this.config = config;
+            this.httpClient = httpClient;
+            this.fallbackLoggerProvider = fallbackLoggerProvider;
+        }
+
         public ILogger CreateLogger(string categoryName)
         {
-            return loggers.GetOrAdd(categoryName, name => new ServiceMonitoringLogger(name, config, httpClient, GetFilter(name, config)));
+            var fallbackLogger = fallbackLoggerProvider?.CreateLogger(categoryName);
+
+            return loggers.GetOrAdd(categoryName, name => new ServiceMonitoringLogger(name, config, httpClient, GetFilter(name, config), fallbackLogger));
         }
 
         public void Dispose()
@@ -32,11 +41,6 @@ namespace OverApps.Logging
 
         private Func<string, LogLevel, bool> GetFilter(string name, ServiceMonitoringLoggerConfig settings)
         {
-            if (filter != null)
-            {
-                return filter;
-            }
-
             if (settings != null)
             {
                 foreach (var prefix in GetKeyPrefixes(name))
