@@ -60,25 +60,33 @@ namespace OverApps.Logging.Tests
             Assert.Pass();
         }
 
+        [Test]
+        public void LogExceptionTest()
+        {
             var handlerMock = new Mock<HttpMessageHandler>(MockBehavior.Strict);
             handlerMock.Protected()
-               // Setup the PROTECTED method to mock
-               .Setup<Task<HttpResponseMessage>>(
-                  "SendAsync",
-                  ItExpr.Is<HttpRequestMessage>(rm => rm.Method == HttpMethod.Post &&
-                                                rm.Content.ReadAsStringAsync().Result.Contains("Mega warning") &&
-                                                rm.RequestUri.Equals(expectedLoggingEndpoint) &&
-                                                rm.Content.ReadAsStringAsync().Result.Contains(expectedApplicationName)),
-                  ItExpr.IsAny<CancellationToken>()
-               )
-               // prepare the expected response of the mocked http call
-               .ReturnsAsync(new HttpResponseMessage(System.Net.HttpStatusCode.Created))
-               .Verifiable();
+                // Setup the PROTECTED method to mock
+                .Setup<Task<HttpResponseMessage>>(
+                    "SendAsync",
+                    ItExpr.Is<HttpRequestMessage>(rm => rm.Method == HttpMethod.Post &&
+                                                        rm.RequestUri.Equals(expectedLoggingEndpoint) &&
+                                                        rm.Content.ReadAsStringAsync().Result.Contains("MissingMethodException") &&
+                                                        rm.Content.ReadAsStringAsync().Result.Contains("EmptyMessage")
+                                                        ),
+                    ItExpr.IsAny<CancellationToken>()
+                )
+                // prepare the expected response of the mocked http call
+                .ReturnsAsync(new HttpResponseMessage(System.Net.HttpStatusCode.Created))
+                .Verifiable();
 
             httpClient = new HttpClient(handlerMock.Object) { BaseAddress = new Uri(expectedLoggingEndpoint) };
 
             serviceMonitoringLogger = new ServiceMonitoringLogger("Test", new ServiceMonitoringLoggerConfig(configuration.Object), httpClient);
 
+            serviceMonitoringLogger.Log(LogLevel.Warning, new MissingMethodException(), "EmptyMessage");
+            Mock.Verify();
+            Assert.Pass();
+        }
 
         [Test]
         public void LogTestFallback()

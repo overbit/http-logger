@@ -60,14 +60,17 @@ namespace OverApps.Logging
                 return;
             }
             
-            var eventLog = new EventLog
+            var eventLog = new LogEntry
             {
                 ApplicationName = config.ApplicationName,
                 HostName = Environment.MachineName,
                 Level = logLevel,
                 Message = $"{eventId.Id} - {name} - {formatter(state, exception)}",
                 UserName = "",
-                UtcDate = DateTime.UtcNow
+                UtcDate = DateTime.UtcNow,
+                ExceptionType = exception?.GetType()?.Name,
+                InnerException = exception?.InnerException,
+                StackTrace = exception?.StackTrace
             };
 
             httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.abcam+json");
